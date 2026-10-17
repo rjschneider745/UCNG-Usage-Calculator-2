@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2f6b3a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="UCNG">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>UCNG Usage Calculator</title>
+<style>
+:root{--bg:#f1f3ee;--panel:#fff;--ink:#1d2a1f;--mute:#5f6e61;--line:#d3d9cf;--accent:#2f6b3a;--accent-ink:#fff;--warn:#9a5b00;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111a13;--panel:#18241b;--ink:#e6efe7;--mute:#92a595;--line:#2b3c2e;--accent:#6fcf82;--accent-ink:#0b1a0e;--warn:#e8b24d}}
+:root[data-theme="dark"]{--bg:#111a13;--panel:#18241b;--ink:#e6efe7;--mute:#92a595;--line:#2b3c2e;--accent:#6fcf82;--accent-ink:#0b1a0e;--warn:#e8b24d}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif}
+main{max-width:520px;margin:0 auto;padding:22px 16px 40px}
+h1{font-size:1.45rem;margin:0 0 4px}
+.lead{color:var(--mute);margin:0 0 18px;font-size:.92rem}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+h2{font-size:1rem;margin:0 0 12px}
+.hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.hd h2{margin:0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+label{display:block;font-size:.82rem;color:var(--mute);margin-bottom:4px}
+label input,label select{margin-top:4px}
+input,select{width:100%;font:inherit;font-size:1.05rem;color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:10px;padding:10px}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.result{background:var(--accent);color:var(--accent-ink);border-radius:14px;padding:18px;margin-bottom:14px}
+.big{font-size:2.6rem;font-weight:700;line-height:1.1}
+.res-sub{opacity:.9;margin-top:4px;font-size:.92rem}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+td{padding:7px 0;border-bottom:1px solid var(--line)}
+td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.note{color:var(--mute);font-size:.82rem;margin:10px 0 0}
+.warn{color:var(--warn);font-size:.9rem;margin:0 0 14px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+button{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:9px 16px;font:inherit;font-size:.92rem;cursor:pointer}
+button.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.tdrop{display:flex;justify-content:space-between;align-items:baseline;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.tdrop b{font-size:1.2rem}
+.entres{margin-top:10px;font-size:.92rem;color:var(--mute)}
+.entres b{color:var(--ink);font-size:1.05rem}
+#editor{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<main>
+<h1>UCNG Usage Calculator</h1>
+<p class="lead">Gas used from pressure and temperature, corrected for compressibility. Add as many tankers as you need.</p>
+
+<div class="result" aria-live="polite">
+<div class="big" id="mcf">–</div>
+<div class="res-sub" id="rsub"></div>
+</div>
+
+<div id="entries"></div>
+<div class="btns" style="margin:-4px 0 14px"><button type="button" class="pri" id="addt">Add another tanker</button><button type="button" id="clr">Clear all readings</button></div>
+
+<div class="card">
+<h2>Details</h2>
+<table id="det"></table>
+<p class="note">Standard conditions: 14.73 psia and 60 °F. 1 MCF = 1,000 standard cubic feet. Compressibility uses the Papay correlation with pseudo-critical properties from gas gravity, which is an estimate. Read pressure and temperature after the cylinders settle for best accuracy.</p>
+</div>
+
+<div class="card">
+<h2>Settings</h2>
+<label for="tu">Temperature unit<select id="tu"><option value="F">°F</option><option value="C">°C</option></select></label>
+<input id="g" type="hidden" value="0.60"><input id="atm" type="hidden" value="14.7"><input id="hv" type="hidden" value="1030">
+<p class="note">Tanker sizes and calculation settings are locked: gas gravity 0.60, atmospheric pressure 14.7 psi, heating value 1,030 BTU/scf.</p>
+</div>
+</main>
+<script>
+var $=function(i){return document.getElementById(i)};
+var PSC=14.73,TSC=519.67,SET=["tu","g","atm","hv"];
+var LT="0.0353147",PRE=[
+{id:"p_outrider",name:"Outrider",count:16,cap:314,unit:LT,left:0,right:0},
+{id:"p_gtm",name:"GTM",count:9,cap:1402,unit:LT,left:0,right:0},
+{id:"p_smartstore",name:"Smartstore",count:15,cap:1545,unit:LT,left:0,right:0},
+{id:"p_titan4",name:"Titan 4",count:4,cap:8512,unit:LT,left:0,right:0},
+{id:"p_titan450",name:"Titan 450",count:4,cap:10593,unit:LT,left:0,right:0},
+{id:"p_quantum",name:"Quantum",count:51,cap:986,unit:LT,left:25,right:26}];
+var tankers=JSON.parse(JSON.stringify(PRE)),sel="p_titan4",editId=null,entries=[];
+function load(k){try{return JSON.parse(localStorage.getItem(k)||"null")}catch(e){return null}}
+function put(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+
+var ss=load("cngL_settings");if(ss&&ss.tu)$("tu").value=ss.tu;
+var en=load("cngL_entries");
+entries=[{tid:"",vsel:"B",open:"1",p1:"",t1:"",p2:"",t2:""}]
+function saveT(){put("cng2_tankers",{list:tankers,sel:sel})}
+function tk(id){return tankers.filter(function(t){return t.id===id})[0]||tankers[0]}
+function hasV(t){return t.left>0&&t.right>0}
+function openCount(t,e){if(!hasV(t))return parseFloat(e.open);return e.vsel==="L"?t.left:e.vsel==="R"?t.right:t.left+t.right}
+function unitName(u){return u==="1"?"cu ft":u==="0.133681"?"gal":"L"}
+function zf(p,t,g){var tpc=169.2+349.5*g-74*g*g,ppc=756.8-131*g-3.6*g*g,pr=p/ppc,tr=t/tpc;
+return 1-3.52*pr/Math.pow(10,0.9813*tr)+0.274*pr*pr/Math.pow(10,0.8157*tr)}
+function scf(v,p,t,g){return v*(p/zf(p,t,g))/t*(TSC/PSC)}
+function f(n,d){return n.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+function esc(x){return String(x==null?"":x).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+
+function build(){
+entries.forEach(function(e){if(e.tid&&!tankers.some(function(t){return t.id===e.tid}))e.tid=""});
+$("entries").innerHTML=entries.map(function(e,i){var t=e.tid?tk(e.tid):{left:0,right:0,count:0,cap:0,unit:"1"},hv=e.tid&&hasV(t);
+var opts='<option value=""'+(e.tid?"":" selected")+' disabled>Select a tanker</option>'+tankers.map(function(x){return'<option value="'+x.id+'"'+(x.id===e.tid?" selected":"")+">"+esc(x.name)+"</option>"}).join("");
+var vopts=[["L","Left valve ("+t.left+" cylinders)"],["R","Right valve ("+t.right+" cylinders)"],["B","Both valves ("+t.count+" cylinders)"]].map(function(o){return'<option value="'+o[0]+'"'+(e.vsel===o[0]?" selected":"")+">"+o[1]+"</option>"}).join("");
+var open=!e.tid?"":hv?'<div class="full"><label>Valve open<select data-f="vsel">'+vopts+"</select></label></div>":'<div class="full"><label>Cylinders open (of '+t.count+')<input data-f="open" type="number" inputmode="numeric" value="'+esc(e.open)+'"></label></div>';
+function num(k,l){return'<div><label>'+l+'<input data-f="'+k+'" type="number" inputmode="decimal" value="'+esc(e[k])+'"></label></div>'}
+return'<div class="card" data-i="'+i+'"><div class="hd"><h2>Tanker '+(i+1)+'</h2>'+(entries.length>1?'<button type="button" data-act="rm">Remove</button>':"")+'</div><div class="grid"><div class="full"><label>Tanker type<select data-f="tid">'+opts+"</select></label></div>"+open+num("p1","Start pressure (psig)")+num("t1","Start temperature")+num("p2","End pressure (psig)")+num("t2","End temperature")+'</div><div class="tdrop"><span>Temperature change</span><b data-out="tchg">–</b></div><div class="entres" data-out="res"></div><div class="warn" data-out="warn" hidden style="margin:8px 0 0"></div></div>'}).join("")}
+
+function calc(){
+var tu=$("tu").value,u=tu==="F"?"°F":"°C",g=parseFloat($("g").value),atm=parseFloat($("atm").value),hv=parseFloat($("hv").value);
+function toR(x){return tu==="F"?x+459.67:x*1.8+491.67}
+var cards=$("entries").children,tot=0,naiveTot=0,n=0;
+entries.forEach(function(e,i){var c=cards[i],t=tk(e.tid),res=c.querySelector("[data-out=res]"),wn=c.querySelector("[data-out=warn]"),tc=c.querySelector("[data-out=tchg]");
+var p1=parseFloat(e.p1),t1=parseFloat(e.t1),p2=parseFloat(e.p2),t2=parseFloat(e.t2),open=openCount(t,e);
+if(!isNaN(t1)&&!isNaN(t2)){var d=t2-t1;tc.textContent=(d>0?"+":d<0?"−":"")+f(Math.abs(d),1)+" "+u}else tc.textContent="–";
+if(!e.tid){res.textContent="Select a tanker to begin.";wn.hidden=true;return}
+if([open,p1,t1,p2,t2,g,atm].some(isNaN)||open<=0){res.textContent="Enter all readings to see usage.";wn.hidden=true;return}
+var vol=open*t.cap*parseFloat(t.unit),T1=toR(t1),T2=toR(t2),P1=p1+atm,P2=p2+atm;
+var s1=scf(vol,P1,T1,g),s2=scf(vol,P2,T2,g),used=s1-s2,naive=s1-scf(vol,P2,T1,g);
+res.innerHTML="<b>"+f(used/1000,3)+" MCF</b> used ("+f(used,0)+" scf). Contents "+f(s1/1000,3)+" to "+f(s2/1000,3)+" MCF.";
+if(!hasV(t)&&open>t.count){wn.hidden=false;wn.textContent="This tanker type only has "+t.count+" cylinders. Check the number open."}
+else if(used<0){wn.hidden=false;wn.textContent="Negative usage. The cylinders gained gas, or the readings were entered in the wrong order."}
+else if(t2>t1+0.01&&P2>P1*0.9){wn.hidden=false;wn.textContent="Temperature rose between readings, which raises pressure and can hide real usage."}
+else wn.hidden=true;
+tot+=used;naiveTot+=naive;n++});
+if(n===0){$("mcf").textContent="–";$("rsub").textContent="Enter readings for at least one tanker.";$("det").innerHTML=""}
+else{$("mcf").textContent=f(tot/1000,3)+" MCF";
+$("rsub").textContent=(n===1?"1 tanker":n+" tankers")+"  |  "+f(tot,0)+" scf"+(isNaN(hv)?"":"  |  "+f(tot*hv/1e6,3)+" MMBtu");
+$("det").innerHTML=[["Tankers counted",n+" of "+entries.length],["Total used",f(tot/1000,3)+" MCF"],["Total if temperature ignored",f(naiveTot/1000,3)+" MCF"],["Temperature correction",f((tot-naiveTot)/1000,3)+" MCF"]].map(function(r){return"<tr><td>"+r[0]+"</td><td>"+r[1]+"</td></tr>"}).join("")}
+put("cngL_entries",entries);put("cngL_settings",{tu:$("tu").value,g:$("g").value,atm:$("atm").value,hv:$("hv").value})}
+
+function onEntry(ev){var el=ev.target,k=el.getAttribute("data-f");if(!k)return;var i=+el.closest(".card").getAttribute("data-i");
+if(k==="tid"){if(ev.type!=="change")return;entries[i].tid=el.value;entries[i].vsel="B";entries[i].open="1";build();calc();return}
+entries[i][k]=el.value;calc()}
+$("entries").addEventListener("input",onEntry);$("entries").addEventListener("change",onEntry);
+$("entries").addEventListener("click",function(ev){if(ev.target.getAttribute("data-act")!=="rm")return;entries.splice(+ev.target.closest(".card").getAttribute("data-i"),1);build();calc()});
+$("addt").onclick=function(){var last=entries[entries.length-1];entries.push({tid:"",vsel:"B",open:"1",p1:"",t1:"",p2:"",t2:""});build();calc();var cs=$("entries").children;cs[cs.length-1].scrollIntoView({behavior:"smooth",block:"start"})};
+$("clr").onclick=function(){entries.forEach(function(e){e.p1=e.t1=e.p2=e.t2=""});build();calc()};
+SET.forEach(function(i){$(i).oninput=calc;$(i).onchange=calc});
+
+
+build();calc();
+if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
+</script>
+</body>
+</html>
